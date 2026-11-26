@@ -37,6 +37,24 @@ grep -aiE 'flag|FLAGSTEG|part [0-9]/[0-9]' *.txt
 6. Tick off the questions these answered. Each question still open → the table below gives its one script line and its by-hand page.
 7. Passwords are never guessed automatically: `--enum` prints the ready `--form-brute` / `--http-brute` / `--brute` line → run it in its own tab.
 
+# Two IPs in the paper: one tab and one folder per target, both at once
+```bash
+# tab 1: first target
+mkdir -p ~/exam/ip1 && cd ~/exam/ip1 && export IP=<first ip>
+ctf --auto $IP --files ~/exam/files | tee auto.txt
+
+# tab 2: second target
+mkdir -p ~/exam/ip2 && cd ~/exam/ip2 && export IP=<second ip>
+ctf --auto $IP --files ~/exam/files | tee auto.txt
+```
+- Separate folders on purpose: `ctf` writes its findings into `ctf-notes/` in the folder you run it from, and `ctf --show` reads from there. One shared folder = the two targets' results mixed.
+- `IP` belongs to the tab. New tab → `cd` into that target's folder and `export IP=…` again (`echo $IP` to check before every command).
+- Which questions use which IP? Mark it on the paper first, so each answer is read from the right folder.
+- The paper limits scanning for a target ("first 100 ports only", "no nmap") → that target gets `ctf --enum $IP --ports 1-100` or [01_recon](01_recon.md) by hand, NOT `--auto`.
+- One starts timing out / a target slows down → stop the second run (Ctrl+C) and do them one after the other.
+- `go.py` takes host and port on the command line, so it works from any tab: `python3 ~/exam/bof-scripts/go.py <ip> <port> ./chall` (use the real path to `bof-scripts/`).
+- Collect per target: `cd ~/exam/ip1 && ctf --show` · then `cd ~/exam/ip2 && ctf --show` · the `grep` lines from step 5 above work inside each folder.
+
 # Game plan
 ```bash
 export IP=<target>                              # every command below uses $IP
